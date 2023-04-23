@@ -57,7 +57,7 @@ app.post ("/login", async (req, res) => {
         if (!user) return res.sendStatus(404);
         if (!bcrypt.compareSync(password, user.password)) return res.sendStatus(401);
         await db.collection("sessions").insertOne({userId: user._id, token});
-        return res.status(200).send({token});
+        return res.status(200).send({token, name: user.name});
     } catch (err) {
         return res.status(500).send(err.message);
     }
@@ -87,9 +87,14 @@ app.post ("/sign-up", async (req, res) => {
 
 app.post ("/transaction/:type", async (req, res) => {
     const {authorization} = req.headers;
-    let {value, description} = req.body;
+    const {value, description} = req.body;
     const {type} = req.params;
     const token = authorization?.replace("Bearer ", "");
+
+    const newDate = new Date();
+    const day = newDate.getDate().toString().padStart(2, "0");
+    const month = (newDate.getMonth() + 1).toString().padStart(2, "0");
+    const date = `${day}/${month}`;
     
     if (!token) return res.sendStatus(401);
 
@@ -98,9 +103,6 @@ app.post ("/transaction/:type", async (req, res) => {
         const errors = validation.error.details.map(detail => detail.message);
         return res.status(422).send(errors);
     }
-
-    value = parseFloat(value);
-    value = value.toFixed(2);
     
     try{
         
@@ -110,7 +112,7 @@ app.post ("/transaction/:type", async (req, res) => {
         
         const user = await db.collection("users").findOne({_id: session.userId});
         if (!user) return res.send(401);
-        await db.collection("transactions").insertOne({value, description, type, userId: session.userId});
+        await db.collection("transactions").insertOne({value, description, type, userId: session.userId, date});
         return res.sendStatus(200);
     } catch (err){
         return res.status(500).send(err.message);
@@ -118,8 +120,30 @@ app.post ("/transaction/:type", async (req, res) => {
 
 });
 
+app.get ("/transactions", async (req, res) => {
+    const {authorization} = req.headers;
+    const token = authorization?.replace("Bearer ", "");
 
+    if (!token) return res.sendStatus(401);
 
+    try{
+        const session = await db.collection("sessions").findOne({token});
+        if (!session) return res.sendStatus(401);
+        const user = await db.collection("users").findOne({_id: session.userId});
+        if (!user) return res.send(401);
+        const name = user.name;
+
+        const transactions = await db.collection("transactions").find({userId: session.userId}).toArray();
+        transactions.map ((t) => {
+            delete t.userId;
+            t.name = name;
+        });
+        console.log(transactions)
+        return res.status(200).send(transactions);
+    } catch (err){
+        return res.status(500).send(err.message);
+    }    
+});
 
 const PORT = 5000;
 app.listen (PORT, () => console.log("Servidor rodando na porta 5000"));
