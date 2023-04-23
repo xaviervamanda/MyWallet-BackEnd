@@ -145,5 +145,5 @@ app.get ("/transactions", async (req, res) => {
     }    
 });
 
-const PORT = 5000;
-app.listen (PORT, () => console.log("Servidor rodando na porta 5000"));
+
+app.listen (process.env.PORT, () => console.log("Servidor rodando na porta 5000"));
